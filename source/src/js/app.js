@@ -113,9 +113,9 @@
     const isNew = !p;
     p = p ? JSON.parse(JSON.stringify(p)) : { name: '', gender: 'male', dob: '', tob: '', place: { ...DEFAULT_PLACE }, relation: '' };
     const s = sheet(
-      '<h2>' + (isNew ? 'Add a person' : 'Edit ' + esc(p.name)) + '</h2><form class="stack" id="pf" novalidate>' +
+      '<h2>' + (isNew ? 'New kundli' : 'Edit ' + esc(p.name)) + '</h2><p class="small muted" style="margin:-8px 0 12px">' + (isNew ? 'Enter the birth details once. The kundli is saved with the relation, so you can open it any time from Kundli or the Family Vault.' : 'Changes are saved to this person’s kundli.') + '</p><form class="stack" id="pf" novalidate>' +
       '<label class="field"><span>Full name (as you use it)</span><input class="input" id="pf-name" required autocomplete="off" value="' + esc(p.name) + '" placeholder="e.g. Ananya Rao"></label>' +
-      '<div class="grid g2"><label class="field"><span>Relation</span><input class="input" id="pf-rel" value="' + esc(p.relation || '') + '" placeholder="Self, Mother, Son…"></label>' +
+      '<div class="grid g2"><label class="field"><span>Relation</span><input class="input" id="pf-rel" list="pf-rel-opts" value="' + esc(p.relation || '') + '" placeholder="Choose or type"><datalist id="pf-rel-opts">' + ['Self', 'Spouse', 'Husband', 'Wife', 'Mother', 'Father', 'Son', 'Daughter', 'Brother', 'Sister', 'Grandmother', 'Grandfather', 'Friend', 'Client', 'Prospective match'].map((r) => '<option value="' + r + '"></option>').join('') + '</datalist></label>' +
       '<label class="field"><span>Gender (used for Kua)</span><select class="input" id="pf-gender"><option value="male">Male</option><option value="female">Female</option></select></label></div>' +
       '<div class="grid g2"><label class="field"><span>Date of birth</span><input class="input" type="date" id="pf-dob" required value="' + esc(p.dob) + '"></label>' +
       '<label class="field"><span>Time of birth (to the second if known)</span><input class="input" type="time" step="1" id="pf-tob" value="' + esc(p.tobUnknown ? '' : p.tob) + '"></label></div>' +
@@ -126,7 +126,7 @@
       '<p class="note">For the most accurate kundli, use “Find exact location” for the actual birthplace (not just the nearest city). Coordinates can be decimals or degrees-minutes-seconds. Births in India between 1 Sep 1942 and 15 Oct 1945 used war time (UTC+6:30); Anubhuti applies it automatically.</p>' +
       '<label class="field"><span>Rituals and remedies to remember (optional)</span><textarea class="input" id="pf-rit" rows="2" placeholder="e.g. Monday Shiva abhishek; wears pearl">' + esc(p.rituals || '') + '</textarea></label>' +
       '<p class="tiny" style="color:var(--bad)" id="pf-err" hidden></p>' +
-      '<div class="sheet-actions">' + (isNew ? '' : '<button type="button" class="btn danger" data-del style="margin-right:auto">' + icon('trash') + 'Delete</button>') + '<button type="button" class="btn" data-close>Cancel</button><button class="btn primary" type="submit">' + (isNew ? 'Add person' : 'Save') + '</button></div></form>');
+      '<div class="sheet-actions">' + (isNew ? '' : '<button type="button" class="btn danger" data-del style="margin-right:auto">' + icon('trash') + 'Delete</button>') + '<button type="button" class="btn" data-close>Cancel</button><button class="btn primary" type="submit">' + icon('check') + (isNew ? 'Save kundli' : 'Save changes') + '</button></div></form>');
     const f = s.el;
     $('#pf-gender', f).value = p.gender === 'female' ? 'female' : 'male';
     const fill = (pl) => { $('#pf-place', f).value = pl.name; $('#pf-lat', f).value = (+pl.lat).toFixed(4); $('#pf-lon', f).value = (+pl.lon).toFixed(4); if (pl.tz != null && isFinite(pl.tz)) $('#pf-tz', f).value = pl.tz; $('#pf-res', f).innerHTML = '<div class="small" style="color:var(--good)">' + icon('check') + ' Using ' + esc(pl.name) + ' (' + (+pl.lat).toFixed(4) + ', ' + (+pl.lon).toFixed(4) + (pl.tz != null ? ', UTC' + (pl.tz >= 0 ? '+' : '') + pl.tz : '') + ')</div>'; };
@@ -161,11 +161,11 @@
       const inIndia = lat > 6 && lat < 37.5 && lon > 68 && lon < 97.5;
       if (inIndia && tz === 5.5 && dob >= '1942-09-01' && dob <= '1945-10-14') { tz = 6.5; toast('Birth during Indian war time: using UTC+6:30'); }
       const msg = !name ? 'Enter a name.' : !/^\d{4}-\d{2}-\d{2}$/.test(dob) ? 'Enter the date of birth.' : !unk && !tob ? 'Enter the birth time, or tick “I don’t know the birth time”.' : !(Math.abs(lat) <= 90 && Math.abs(lon) <= 180 && Math.abs(tz) <= 14) ? 'Check the latitude, longitude and UTC offset.' : '';
-      if (msg) { err.textContent = msg; err.hidden = false; return; }
+      if (msg) { err.textContent = msg; err.hidden = false; err.scrollIntoView({ block: 'center', behavior: 'smooth' }); toast(msg); const fld = !name ? '#pf-name' : !/^\d{4}-\d{2}-\d{2}$/.test(dob) ? '#pf-dob' : !unk && !tob ? '#pf-tob' : '#pf-lat'; const fe = $(fld, f); fe && fe.focus(); return; }
       Object.assign(p, { name, dob, tob: unk ? '12:00' : tob, tobUnknown: unk, gender: $('#pf-gender', f).value, relation: $('#pf-rel', f).value.trim(), rituals: $('#pf-rit', f).value.trim(), place: { name: $('#pf-place', f).value.trim() || lat.toFixed(2) + ', ' + lon.toFixed(2), lat, lon, tz } });
       const saved = S.saveProfile(p);
       if (isNew || !S.state.settings.activeProfile) S.saveSettings({ activeProfile: saved.id });
-      s.close(); toast(isNew ? name + ' added' : 'Saved');
+      s.close(); toast((isNew ? 'Kundli saved: ' : 'Updated: ') + name + (p.relation ? ' (' + p.relation + ')' : ''), 4000);
       after && after(saved);
     });
   }

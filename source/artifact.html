@@ -453,6 +453,16 @@ table.t { width: 100%; border-collapse: collapse; font-size: .88rem; }
 }
 @media (max-width: 900px) { :where(button, a, input, select, textarea, summary) { scroll-margin-top: 84px; scroll-margin-bottom: 100px; } }
 
+.saved-strip { display: flex; gap: 8px; overflow-x: auto; padding: 2px 2px 10px; margin: -4px 0 12px; }
+.saved-k { display: flex; align-items: center; gap: 8px; padding: 6px 12px 6px 6px; border-radius: 99px; border: 1px solid var(--line); background: var(--paper); cursor: pointer; text-align: left; flex: none; }
+.saved-k b { display: block; font-size: .86rem; line-height: 1.1; }
+.saved-k small { color: var(--muted); font-size: .72rem; }
+.saved-k .avatar { width: 30px; height: 30px; font-size: .8rem; }
+.saved-k.on { border-color: var(--indigo); background: var(--indigo-soft); box-shadow: inset 0 0 0 1px var(--indigo); }
+.saved-k.new { border-style: dashed; }
+.sheet .sheet-actions { position: sticky; bottom: -20px; margin: 18px -20px -20px; padding: 12px 20px calc(12px + env(safe-area-inset-bottom, 0px)); background: var(--paper); border-top: 1px solid var(--line); z-index: 2; }
+@media (max-width: 900px) { .toast { bottom: calc(84px + env(safe-area-inset-bottom, 0px)); } }
+
 </style>
 <div id="root"><noscript>Anubhuti needs JavaScript to run.</noscript></div>
 <script>
@@ -2320,9 +2330,9 @@ table.t { width: 100%; border-collapse: collapse; font-size: .88rem; }
     const isNew = !p;
     p = p ? JSON.parse(JSON.stringify(p)) : { name: '', gender: 'male', dob: '', tob: '', place: { ...DEFAULT_PLACE }, relation: '' };
     const s = sheet(
-      '<h2>' + (isNew ? 'Add a person' : 'Edit ' + esc(p.name)) + '</h2><form class="stack" id="pf" novalidate>' +
+      '<h2>' + (isNew ? 'New kundli' : 'Edit ' + esc(p.name)) + '</h2><p class="small muted" style="margin:-8px 0 12px">' + (isNew ? 'Enter the birth details once. The kundli is saved with the relation, so you can open it any time from Kundli or the Family Vault.' : 'Changes are saved to this person’s kundli.') + '</p><form class="stack" id="pf" novalidate>' +
       '<label class="field"><span>Full name (as you use it)</span><input class="input" id="pf-name" required autocomplete="off" value="' + esc(p.name) + '" placeholder="e.g. Ananya Rao"></label>' +
-      '<div class="grid g2"><label class="field"><span>Relation</span><input class="input" id="pf-rel" value="' + esc(p.relation || '') + '" placeholder="Self, Mother, Son…"></label>' +
+      '<div class="grid g2"><label class="field"><span>Relation</span><input class="input" id="pf-rel" list="pf-rel-opts" value="' + esc(p.relation || '') + '" placeholder="Choose or type"><datalist id="pf-rel-opts">' + ['Self', 'Spouse', 'Husband', 'Wife', 'Mother', 'Father', 'Son', 'Daughter', 'Brother', 'Sister', 'Grandmother', 'Grandfather', 'Friend', 'Client', 'Prospective match'].map((r) => '<option value="' + r + '"></option>').join('') + '</datalist></label>' +
       '<label class="field"><span>Gender (used for Kua)</span><select class="input" id="pf-gender"><option value="male">Male</option><option value="female">Female</option></select></label></div>' +
       '<div class="grid g2"><label class="field"><span>Date of birth</span><input class="input" type="date" id="pf-dob" required value="' + esc(p.dob) + '"></label>' +
       '<label class="field"><span>Time of birth (to the second if known)</span><input class="input" type="time" step="1" id="pf-tob" value="' + esc(p.tobUnknown ? '' : p.tob) + '"></label></div>' +
@@ -2333,7 +2343,7 @@ table.t { width: 100%; border-collapse: collapse; font-size: .88rem; }
       '<p class="note">For the most accurate kundli, use “Find exact location” for the actual birthplace (not just the nearest city). Coordinates can be decimals or degrees-minutes-seconds. Births in India between 1 Sep 1942 and 15 Oct 1945 used war time (UTC+6:30); Anubhuti applies it automatically.</p>' +
       '<label class="field"><span>Rituals and remedies to remember (optional)</span><textarea class="input" id="pf-rit" rows="2" placeholder="e.g. Monday Shiva abhishek; wears pearl">' + esc(p.rituals || '') + '</textarea></label>' +
       '<p class="tiny" style="color:var(--bad)" id="pf-err" hidden></p>' +
-      '<div class="sheet-actions">' + (isNew ? '' : '<button type="button" class="btn danger" data-del style="margin-right:auto">' + icon('trash') + 'Delete</button>') + '<button type="button" class="btn" data-close>Cancel</button><button class="btn primary" type="submit">' + (isNew ? 'Add person' : 'Save') + '</button></div></form>');
+      '<div class="sheet-actions">' + (isNew ? '' : '<button type="button" class="btn danger" data-del style="margin-right:auto">' + icon('trash') + 'Delete</button>') + '<button type="button" class="btn" data-close>Cancel</button><button class="btn primary" type="submit">' + icon('check') + (isNew ? 'Save kundli' : 'Save changes') + '</button></div></form>');
     const f = s.el;
     $('#pf-gender', f).value = p.gender === 'female' ? 'female' : 'male';
     const fill = (pl) => { $('#pf-place', f).value = pl.name; $('#pf-lat', f).value = (+pl.lat).toFixed(4); $('#pf-lon', f).value = (+pl.lon).toFixed(4); if (pl.tz != null && isFinite(pl.tz)) $('#pf-tz', f).value = pl.tz; $('#pf-res', f).innerHTML = '<div class="small" style="color:var(--good)">' + icon('check') + ' Using ' + esc(pl.name) + ' (' + (+pl.lat).toFixed(4) + ', ' + (+pl.lon).toFixed(4) + (pl.tz != null ? ', UTC' + (pl.tz >= 0 ? '+' : '') + pl.tz : '') + ')</div>'; };
@@ -2368,11 +2378,11 @@ table.t { width: 100%; border-collapse: collapse; font-size: .88rem; }
       const inIndia = lat > 6 && lat < 37.5 && lon > 68 && lon < 97.5;
       if (inIndia && tz === 5.5 && dob >= '1942-09-01' && dob <= '1945-10-14') { tz = 6.5; toast('Birth during Indian war time: using UTC+6:30'); }
       const msg = !name ? 'Enter a name.' : !/^\d{4}-\d{2}-\d{2}$/.test(dob) ? 'Enter the date of birth.' : !unk && !tob ? 'Enter the birth time, or tick “I don’t know the birth time”.' : !(Math.abs(lat) <= 90 && Math.abs(lon) <= 180 && Math.abs(tz) <= 14) ? 'Check the latitude, longitude and UTC offset.' : '';
-      if (msg) { err.textContent = msg; err.hidden = false; return; }
+      if (msg) { err.textContent = msg; err.hidden = false; err.scrollIntoView({ block: 'center', behavior: 'smooth' }); toast(msg); const fld = !name ? '#pf-name' : !/^\d{4}-\d{2}-\d{2}$/.test(dob) ? '#pf-dob' : !unk && !tob ? '#pf-tob' : '#pf-lat'; const fe = $(fld, f); fe && fe.focus(); return; }
       Object.assign(p, { name, dob, tob: unk ? '12:00' : tob, tobUnknown: unk, gender: $('#pf-gender', f).value, relation: $('#pf-rel', f).value.trim(), rituals: $('#pf-rit', f).value.trim(), place: { name: $('#pf-place', f).value.trim() || lat.toFixed(2) + ', ' + lon.toFixed(2), lat, lon, tz } });
       const saved = S.saveProfile(p);
       if (isNew || !S.state.settings.activeProfile) S.saveSettings({ activeProfile: saved.id });
-      s.close(); toast(isNew ? name + ' added' : 'Saved');
+      s.close(); toast((isNew ? 'Kundli saved: ' : 'Updated: ') + name + (p.relation ? ' (' + p.relation + ')' : ''), 4000);
       after && after(saved);
     });
   }
@@ -2955,7 +2965,7 @@ table.t { width: 100%; border-collapse: collapse; font-size: .88rem; }
       const draw = () => {
         const p = app.activeProfile();
         el.innerHTML = '<div class="page-head"><div><div class="kicker">Kundli</div><h1>Birth chart</h1></div>' + (p ? '<div class="row"><button class="btn" id="k-dl">' + icon('download') + 'Download report</button><a class="btn accent" href="#ask" id="k-ask">' + icon('ask') + 'Ask about this chart</a></div>' : '') + '</div>' +
-          '<div class="card" style="margin-bottom:16px">' + app.profileBar() + '</div>';
+          '<div class="card" style="margin-bottom:16px">' + app.profileBar() + '</div>' + savedStrip();
         if (!p) return;
         const ch = app.chart(p), P = ch.planets;
         const tabs = [['overview', 'Charts'], ['vargas', 'Divisional charts'], ['planets', 'Planets'], ['jaimini', 'Karakas & aspects'], ['dasha', 'Dasha'], ['yogas', 'Yogas & doshas'], ['kp', 'KP system'], ['ashtaka', 'Ashtakavarga & strength'], ['transit', 'Transits'], ['varsha', 'Varshphal'], ['lalkitab', 'Lal Kitab'], ['prashna', 'Prashna'], ['match', 'Match making']];
@@ -3092,6 +3102,12 @@ table.t { width: 100%; border-collapse: collapse; font-size: .88rem; }
         const dl = $('#k-dl', el); dl && dl.addEventListener('click', async () => { const r = await S.download('kundli-' + p.name.replace(/\W+/g, '-').toLowerCase() + '.html', reportHtml(p, ch), 'text/html'); if (r === 'saved') toast('Report saved'); else if (r === 'unavailable') toast('Downloads are not available in this view.'); });
         const ak = $('#k-ask', el); ak && ak.addEventListener('click', () => lsSet('askPreset', 'chart'));
       };
+      const savedStrip = () => {
+        const ps = app.profiles(), cur = app.activeProfile();
+        if (!ps.length) return '';
+        return '<div class="saved-strip" aria-label="Saved kundlis"><span class="tiny muted" style="align-self:center;white-space:nowrap">Saved kundlis (' + ps.length + ')</span>' + ps.map((x) => '<button class="saved-k' + (cur && cur.id === x.id ? ' on' : '') + '" data-pick="' + x.id + '"><span class="avatar">' + esc(D.ui.initials(x.name)) + '</span><span><b>' + esc(x.name.split(' ')[0]) + '</b><small>' + esc(x.relation || 'No relation') + '</small></span></button>').join('') + '<button class="saved-k new" data-act-add><span class="avatar">+</span><span><b>New kundli</b><small>Enter details</small></span></button></div>';
+      };
+      el.addEventListener('click', (e) => { const b = e.target.closest('[data-pick]'); if (b) { S.saveSettings({ activeProfile: b.dataset.pick }); } });
       const fact = (l, v, s) => '<div class="card"><div class="stat"><span class="label">' + l + '</span><span class="value">' + esc(v) + '</span><span class="sub">' + esc(s) + '</span></div></div>';
       const yogaRow = (y) => '<div class="yoga"><span class="dot-q ' + (y.present ? (y.kind === 'good' ? 'good' : 'bad') : 'neutral') + '" style="margin-top:7px;' + (y.present ? '' : 'opacity:.35') + '"></span><div><b>' + esc(y.name) + '</b><div class="small muted">' + esc(y.why) + '</div></div></div>';
       draw();

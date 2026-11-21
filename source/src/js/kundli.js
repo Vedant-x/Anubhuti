@@ -206,7 +206,7 @@
       const draw = () => {
         const p = app.activeProfile();
         el.innerHTML = '<div class="page-head"><div><div class="kicker">Kundli</div><h1>Birth chart</h1></div>' + (p ? '<div class="row"><button class="btn" id="k-dl">' + icon('download') + 'Download report</button><a class="btn accent" href="#ask" id="k-ask">' + icon('ask') + 'Ask about this chart</a></div>' : '') + '</div>' +
-          '<div class="card" style="margin-bottom:16px">' + app.profileBar() + '</div>';
+          '<div class="card" style="margin-bottom:16px">' + app.profileBar() + '</div>' + savedStrip();
         if (!p) return;
         const ch = app.chart(p), P = ch.planets;
         const tabs = [['overview', 'Charts'], ['vargas', 'Divisional charts'], ['planets', 'Planets'], ['jaimini', 'Karakas & aspects'], ['dasha', 'Dasha'], ['yogas', 'Yogas & doshas'], ['kp', 'KP system'], ['ashtaka', 'Ashtakavarga & strength'], ['transit', 'Transits'], ['varsha', 'Varshphal'], ['lalkitab', 'Lal Kitab'], ['prashna', 'Prashna'], ['match', 'Match making']];
@@ -343,6 +343,12 @@
         const dl = $('#k-dl', el); dl && dl.addEventListener('click', async () => { const r = await S.download('kundli-' + p.name.replace(/\W+/g, '-').toLowerCase() + '.html', reportHtml(p, ch), 'text/html'); if (r === 'saved') toast('Report saved'); else if (r === 'unavailable') toast('Downloads are not available in this view.'); });
         const ak = $('#k-ask', el); ak && ak.addEventListener('click', () => lsSet('askPreset', 'chart'));
       };
+      const savedStrip = () => {
+        const ps = app.profiles(), cur = app.activeProfile();
+        if (!ps.length) return '';
+        return '<div class="saved-strip" aria-label="Saved kundlis"><span class="tiny muted" style="align-self:center;white-space:nowrap">Saved kundlis (' + ps.length + ')</span>' + ps.map((x) => '<button class="saved-k' + (cur && cur.id === x.id ? ' on' : '') + '" data-pick="' + x.id + '"><span class="avatar">' + esc(D.ui.initials(x.name)) + '</span><span><b>' + esc(x.name.split(' ')[0]) + '</b><small>' + esc(x.relation || 'No relation') + '</small></span></button>').join('') + '<button class="saved-k new" data-act-add><span class="avatar">+</span><span><b>New kundli</b><small>Enter details</small></span></button></div>';
+      };
+      el.addEventListener('click', (e) => { const b = e.target.closest('[data-pick]'); if (b) { S.saveSettings({ activeProfile: b.dataset.pick }); } });
       const fact = (l, v, s) => '<div class="card"><div class="stat"><span class="label">' + l + '</span><span class="value">' + esc(v) + '</span><span class="sub">' + esc(s) + '</span></div></div>';
       const yogaRow = (y) => '<div class="yoga"><span class="dot-q ' + (y.present ? (y.kind === 'good' ? 'good' : 'bad') : 'neutral') + '" style="margin-top:7px;' + (y.present ? '' : 'opacity:.35') + '"></span><div><b>' + esc(y.name) + '</b><div class="small muted">' + esc(y.why) + '</div></div></div>';
       draw();
