@@ -54,6 +54,36 @@
     s += '<text x="200" y="192" text-anchor="middle" font-family="var(--font-display)" font-size="20" fill="var(--ink)">' + esc(title) + '</text><text x="200" y="214" text-anchor="middle" font-size="11" fill="var(--muted)">Anubhuti</text>';
     return s + '</svg>';
   }
+  /* KP chart: North style = houses from Placidus cusps (cusp sign + degree per house);
+     South style = signs fixed, with planets and cusp markers placed by longitude. */
+  function kpChartSvg(kv) {
+    const C = kv.cusps, K = kv.kp, P = kv.planets;
+    const deg = (x) => Math.floor(x % 30) + '°' + String(Math.floor(((x % 30) % 1) * 60)).padStart(2, '0');
+    if ((S.state.settings.chartStyle || 'north') === 'south') {
+      let s = '<svg class="chart-svg" viewBox="-6 -6 412 412" role="img" aria-label="KP chart"><rect x="0" y="0" width="400" height="400" fill="var(--paper)" stroke="var(--ink-2)" stroke-width="1.5"/>';
+      for (let sign = 0; sign < 12; sign++) {
+        const [c, r] = SOUTH_POS[sign], x = c * 100, y = r * 100;
+        s += '<rect x="' + x + '" y="' + y + '" width="100" height="100" fill="none" stroke="var(--ink-2)" stroke-width="1.1"/><text x="' + (x + 6) + '" y="' + (y + 13) + '" font-size="10" fill="var(--muted)" font-weight="600">' + D.SIGNS[sign].sa.slice(0, 4) + '</text>';
+        const items = [];
+        for (let h = 1; h <= 12; h++) if (Math.floor(C[h] / 30) === sign) items.push({ t: 'C' + h + ' ' + deg(C[h]), cusp: true, l: C[h] });
+        D.PLANET_ORDER.forEach((p) => { if (P[p].sign === sign) items.push({ t: D.PLANETS[p].abbr + ' ' + deg(P[p].lon), l: P[p].lon }); });
+        items.sort((a2, b2) => a2.l - b2.l).forEach((it, k) => { s += '<text x="' + (x + 50) + '" y="' + (y + 30 + k * 12.5) + '" text-anchor="middle" font-size="' + (items.length > 5 ? 9.5 : 11) + '" font-weight="' + (it.cusp ? 700 : 650) + '" fill="' + (it.cusp ? 'var(--saffron-ink)' : 'var(--ink)') + '">' + it.t + '</text>'; });
+      }
+      return s + '<text x="200" y="196" text-anchor="middle" font-family="var(--font-display)" font-size="20" fill="var(--ink)">KP</text><text x="200" y="216" text-anchor="middle" font-size="10" fill="var(--muted)">C = cusp</text></svg>';
+    }
+    let s = '<svg class="chart-svg" viewBox="-6 -6 412 412" role="img" aria-label="KP chart"><rect x="0" y="0" width="400" height="400" fill="var(--paper)" stroke="var(--ink-2)" stroke-width="1.5"/><path d="M0 0L400 400M400 0L0 400M200 0L400 200L200 400L0 200Z" fill="none" stroke="var(--ink-2)" stroke-width="1.2"/>';
+    NH.forEach((poly, i) => {
+      const h = i + 1, cx = poly.reduce((a2, q) => a2 + q[0], 0) / poly.length, cy = poly.reduce((a2, q) => a2 + q[1], 0) / poly.length;
+      const inner = poly.slice().sort((a2, b2) => Math.hypot(a2[0] - 200, a2[1] - 200) - Math.hypot(b2[0] - 200, b2[1] - 200))[0];
+      const nx = cx + (inner[0] - cx) * 0.62, ny = cy + (inner[1] - cy) * 0.62;
+      if (i === 0) s += '<path d="M' + poly.map((q) => q.join(' ')).join('L') + 'Z" fill="var(--saffron-soft)" opacity=".6"/>';
+      s += '<text x="' + nx + '" y="' + (ny - 5) + '" text-anchor="middle" font-size="11.5" fill="var(--muted)" font-weight="700">' + (Math.floor(C[h] / 30) + 1) + '</text><text x="' + nx + '" y="' + (ny + 7) + '" text-anchor="middle" font-size="8.5" fill="var(--saffron-ink)">' + deg(C[h]) + '</text>';
+      const items = D.PLANET_ORDER.filter((p) => K.pHouse[p] === h), fs = items.length > 3 ? 10.5 : 12, lh = fs + 2;
+      const y0 = (i === 0 || i === 6 ? cy - 4 : cy) - ((items.length - 1) * lh) / 2 - (i === 0 ? 0 : 6);
+      items.forEach((p, k) => { s += '<text x="' + cx + '" y="' + (y0 + k * lh) + '" text-anchor="middle" font-size="' + fs + '" font-weight="650" fill="var(--ink)">' + D.PLANETS[p].abbr + (P[p].retro && p !== 'Rahu' && p !== 'Ketu' ? '℞' : '') + '<tspan font-size="8.5" fill="var(--muted)" font-weight="500"> ' + deg(P[p].lon) + '</tspan></text>'; });
+    });
+    return s + '</svg>';
+  }
   const chartSvg = (ch, which, title) => ((S.state.settings.chartStyle || 'north') === 'south' ? southSvg : northSvg)(ch, which, title);
 
   /* ---------- Ashtakoota (gun milan) with standard tables ---------- */
@@ -294,15 +324,22 @@
             Array.from({ length: 12 }, (_, i) => '<tr><td><b>' + (i + 1) + '</b> <span class="muted small">' + D.SIGNS[(ch.lagna + i) % 12].en + '</span></td><td>' + (asp.byHouse[i + 1].map((x) => '<span class="chip ' + (['Jupiter', 'Venus', 'Mercury', 'Moon'].includes(x) ? 'good' : ['Saturn', 'Mars', 'Rahu', 'Ketu', 'Sun'].includes(x) ? 'bad' : '') + '">' + x + '</span>').join(' ') || '—') + '</td></tr>').join('') + '</tbody></table></div></div></div></div>';
         }
         if (tab === 'kp') {
-          const K = ch.kp, ev = A.kpEvents(ch, A.nowJd());
-          body.innerHTML = '<div class="card" style="margin-bottom:16px"><div class="card-head"><h3>Placidus cusps</h3><span class="small muted">KP sign / star / sub lord of each cusp</span></div><div class="table-wrap"><table class="t"><thead><tr><th>House</th><th>Cusp</th><th>Sign lord</th><th>Star lord</th><th>Sub lord</th><th>Occupants</th></tr></thead><tbody>' +
-            K.houses.map((x) => '<tr><td><b>' + x.h + '</b></td><td class="num">' + D.SIGNS[Math.floor(x.cusp / 30)].en.slice(0, 3) + ' ' + A.fmtDeg(x.cusp % 30) + '</td><td>' + x.kp.sign + '</td><td>' + x.kp.star + '</td><td><b>' + x.kp.sub + '</b></td><td>' + (x.occupants.join(', ') || '—') + '</td></tr>').join('') + '</tbody></table></div></div>' +
-            '<div class="grid g2"><div class="card"><div class="card-head"><h3>Planet significators</h3><span class="small muted">Houses each planet signifies</span></div><div class="table-wrap"><table class="t"><thead><tr><th>Planet</th><th>In house</th><th>Star lord</th><th>Signifies houses</th></tr></thead><tbody>' +
-            D.PLANET_ORDER.map((n) => '<tr><td><b>' + n + '</b></td><td>' + K.pHouse[n] + '</td><td>' + P[n].kp.star + '</td><td class="num">' + K.sig[n].join(', ') + '</td></tr>').join('') + '</tbody></table></div>' +
+          const mode = lsGet('kpAyan', 'kp'), kv = A.kpView(ch, mode), K = kv.kp, KP = kv.planets, ev = A.kpEvents(kv, A.nowJd());
+          const pl = app.place(), rp = A.rulingPlanets(A.nowJd(), pl, mode);
+          body.innerHTML = '<div class="row-between" style="margin-bottom:12px"><div class="seg" id="k-kpay"><button data-v="kp" aria-pressed="' + (mode !== 'lahiri') + '">KP (Krishnamurti) ayanamsa</button><button data-v="lahiri" aria-pressed="' + (mode === 'lahiri') + '">Lahiri ayanamsa</button></div><span class="small muted num">' + kv.ayanamsaName + ' ' + A.fmtDeg(kv.ayanamsaUsed) + ' · Placidus houses</span></div>' +
+            '<div class="charts" style="margin-bottom:16px"><div class="card"><div class="card-head"><h3>KP chart (bhava chalit)</h3><span class="tiny muted">Houses from Placidus cusps · cusp sign and degree in each house</span></div>' + kpChartSvg(kv) + '</div>' +
+            '<div class="card stack"><div class="card-head" style="margin:0"><h3>Ruling planets now</h3><span class="tiny muted">' + esc(pl.name.replace(', India', '')) + ' · ' + A.fmtTime(A.nowJd(), pl.tz) + '</span></div><div class="table-wrap"><table class="t"><tbody>' + rp.rows.map((r) => '<tr><td>' + r[0] + '</td><td><b>' + r[1] + '</b></td></tr>').join('') + '</tbody></table></div>' +
+            '<div class="row" style="gap:6px">' + rp.set.map((x) => '<span class="chip accent">' + x + '</span>').join('') + '</div><p class="note">Ruling planets at the moment of judgement confirm which significators will give results now. Lagna ' + D.SIGNS[rp.ascSign].en + ', Moon in ' + D.NAKSHATRAS[rp.moonNak].name + '.</p><button class="btn sm" id="k-rp">' + icon('refresh') + 'Refresh</button></div></div>' +
+            '<div class="card" style="margin-bottom:16px"><div class="card-head"><h3>Cusps (Placidus)</h3><span class="small muted">KP sign / star / sub / sub-sub lord of each cusp</span></div><div class="table-wrap"><table class="t"><thead><tr><th>House</th><th>Cusp</th><th>Sign lord</th><th>Star lord</th><th>Sub lord</th><th>Sub-sub</th><th>Occupants</th></tr></thead><tbody>' +
+            K.houses.map((x) => '<tr><td><b>' + x.h + '</b></td><td class="num">' + D.SIGNS[Math.floor(x.cusp / 30)].en.slice(0, 3) + ' ' + A.fmtDeg(x.cusp % 30) + '</td><td>' + x.kp.sign + '</td><td>' + x.kp.star + '</td><td><b>' + x.kp.sub + '</b></td><td>' + x.kp.subsub + '</td><td>' + (x.occupants.join(', ') || '—') + '</td></tr>').join('') + '</tbody></table></div></div>' +
+            '<div class="grid g2"><div class="card"><div class="card-head"><h3>Planets</h3><span class="small muted">KP positions and lords</span></div><div class="table-wrap"><table class="t"><thead><tr><th>Planet</th><th>Position</th><th>House</th><th>Star / Sub / Sub-sub</th><th>Signifies</th></tr></thead><tbody>' +
+            D.PLANET_ORDER.map((n) => '<tr><td><b>' + n + '</b></td><td class="num">' + D.SIGNS[KP[n].sign].en.slice(0, 3) + ' ' + A.fmtDeg(KP[n].deg) + '</td><td class="num">' + K.pHouse[n] + '</td><td>' + KP[n].kp.star + ' / ' + KP[n].kp.sub + ' / ' + KP[n].kp.subsub + '</td><td class="num">' + K.sig[n].join(', ') + '</td></tr>').join('') + '</tbody></table></div>' +
             '<details style="margin-top:10px"><summary class="small">House-wise significators (4 levels)</summary><div class="table-wrap" style="margin-top:8px"><table class="t"><thead><tr><th>House</th><th>L1 in star of occupants</th><th>L2 occupants</th><th>L3 in star of owner</th><th>L4 owner</th></tr></thead><tbody>' + K.houses.map((x) => '<tr><td>' + x.h + '</td><td>' + (x.L1.join(', ') || '—') + '</td><td>' + (x.L2.join(', ') || '—') + '</td><td>' + (x.L3.join(', ') || '—') + '</td><td>' + x.L4.join(', ') + '</td></tr>').join('') + '</tbody></table></div></details></div>' +
             '<div class="card"><div class="card-head"><h3>Life-event scan</h3><span class="small muted">Promise from the main cusp sub lord, timing from the running dasha</span></div>' +
-            ev.map((e) => '<div class="yoga"><span class="dot-q ' + (e.promise ? 'good' : 'neutral') + '" style="margin-top:7px"></span><div class="grow"><div class="row-between"><b>' + e.name + '</b>' + (e.active.length && e.promise ? '<span class="chip great">active now</span>' : e.promise ? '<span class="chip good">promised</span>' : '<span class="chip">weak promise</span>') + '</div><div class="small muted">Cusp ' + e.cusp + ' sub lord ' + e.csl + ' signifies ' + (e.cslHouses.join(', ') || 'none') + '. Needs ' + e.houses.join(', ') + '. Strong significators: ' + (e.supporters.join(', ') || 'none') + (e.active.length ? '. Running dasha lord(s) ' + e.active.join(', ') + ' connect.' : '.') + '</div></div></div>').join('') + '</div></div>' +
-            '<p class="note" style="margin-top:12px">Placidus houses with the Lahiri ayanamsa (KP purists use the KP ayanamsa, about 6′ different). The scan is a quick guide; a KP astrologer also checks ruling planets and sub-sub lords.</p>';
+            ev.map((e) => '<div class="yoga"><span class="dot-q ' + (e.promise ? 'good' : 'neutral') + '" style="margin-top:7px"></span><div class="grow"><div class="row-between"><b>' + e.name + '</b>' + (e.active.length && e.promise ? '<span class="chip great">active now</span>' : e.promise ? '<span class="chip good">promised</span>' : '<span class="chip">weak promise</span>') + '</div><div class="small muted">Cusp ' + e.cusp + ' sub lord ' + e.csl + ' signifies ' + (e.cslHouses.join(', ') || 'none') + '. Needs ' + e.houses.join(', ') + '. Strong significators: ' + (e.supporters.join(', ') || 'none') + (e.active.length ? '. Running dasha lord(s) ' + e.active.join(', ') + ' connect' + (e.active.some((x) => rp.set.includes(x)) ? ' and are ruling planets now' : '') + '.' : '.') + '</div></div></div>').join('') + '</div></div>' +
+            '<p class="note" style="margin-top:12px">KP uses Placidus houses and the Krishnamurti ayanamsa (about 6′ less than Lahiri). The event scan is a quick guide; a KP astrologer also weighs ruling planets and sub-sub lords.</p>';
+          $$('#k-kpay button', body).forEach((bt) => bt.addEventListener('click', () => { lsSet('kpAyan', bt.dataset.v); draw(); }));
+          $('#k-rp', body).addEventListener('click', () => draw());
         } else if (tab === 'ashtaka') {
           const AV = ch.ashtaka, PL = ['Sun', 'Moon', 'Mars', 'Mercury', 'Jupiter', 'Venus', 'Saturn'];
           const signs = Array.from({ length: 12 }, (_, i) => (ch.lagna + i) % 12);
@@ -355,5 +392,5 @@
       this.onData = draw;
     },
   };
-  D.kundli = { northSvg, southSvg, milan, renderMilan, matchExtras, reportHtml, guidance };
+  D.kundli = { northSvg, southSvg, kpChartSvg, milan, renderMilan, matchExtras, reportHtml, guidance };
 })(window);

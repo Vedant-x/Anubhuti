@@ -429,6 +429,36 @@
     const sig = {}; planets.forEach((p) => { sig[p] = houses.filter((x) => x.all.includes(p)).map((x) => x.h); });
     return { houses, pHouse, sig };
   }
+  /* KP view: the same chart in the Krishnamurti ayanamsa (or Lahiri), with Placidus houses,
+     KP lords, significators and a KP Vimshottari. KP ayanamsa: 22°21′50″ at 1900.0 (Swiss Ephemeris). */
+  const kpAyanamsa = (jd) => 22.363889 + pA(T(tt(jd))) - pA(-1);
+  function kpView(ch, mode) {
+    const d = mode === 'lahiri' ? 0 : ayanamsa(ch.jd) - kpAyanamsa(ch.jd);
+    const planets = {};
+    for (const p of D.PLANET_ORDER) { const lon = norm(ch.planets[p].lon + d); planets[p] = { ...ch.planets[p], lon, sign: Math.floor(lon / 30), deg: lon % 30, kp: kpLords(lon) }; }
+    const sh = { ...ch, planets, cusps: ch.cusps.map((c) => (c == null ? null : norm(c + d))), asc: norm(ch.asc + d) };
+    sh.kp = kpHouses(sh);
+    sh.dasha = vimshottari(planets.Moon.lon, ch.jd);
+    sh.ayanamsaUsed = mode === 'lahiri' ? ayanamsa(ch.jd) : kpAyanamsa(ch.jd);
+    sh.ayanamsaName = mode === 'lahiri' ? 'Lahiri' : 'Krishnamurti (KP)';
+    return sh;
+  }
+  /* KP ruling planets for a moment and place */
+  function rulingPlanets(jd, place, mode) {
+    const ay = mode === 'lahiri' ? ayanamsa(jd) : kpAyanamsa(jd);
+    const asc = norm(ascendantTrop(jd, place.lat, place.lon) - ay), moon = norm(moonLon(jd) - ay);
+    const a = kpLords(asc), m = kpLords(moon), wd = jdToLocal(jd, place.tz).wd;
+    const st = sunTimes(jdToLocal(jd, place.tz).y + '-' + String(jdToLocal(jd, place.tz).m).padStart(2, '0') + '-' + String(jdToLocal(jd, place.tz).d).padStart(2, '0'), place);
+    const vedicWd = st.rise != null && jd < st.rise ? (wd + 6) % 7 : wd;
+    const day = D.VARAS[vedicWd][2];
+    const rp = [['Lagna sign lord', a.sign], ['Lagna star lord', a.star], ['Lagna sub lord', a.sub], ['Moon sign lord', m.sign], ['Moon star lord', m.star], ['Moon sub lord', m.sub], ['Day lord', day]];
+    const set = Array.from(new Set(rp.map((x) => x[1])));
+    // nodes join the RPs when they occupy a sign ruled by an RP or are conjunct one
+    const sid = siderealAll(jd), shift = ay - ayanamsa(jd);
+    ['Rahu', 'Ketu'].forEach((n) => { const lon = norm(sid[n] - shift), lord = D.SIGNS[Math.floor(lon / 30)].lord; if (set.includes(lord) && !set.includes(n)) set.push(n); });
+    return { asc, moon, rows: rp, set, ascSign: Math.floor(asc / 30), moonNak: Math.floor(moon / NAK) };
+  }
+
   const KP_EVENTS = [ // name, main cusp, supporting houses, denying houses
     ['Marriage', 7, [2, 7, 11], [1, 6, 10]], ['Job / career', 10, [2, 6, 10, 11], [5, 8, 12]], ['Business', 7, [7, 10, 11], [6, 8, 12]],
     ['Property / home', 4, [4, 11, 12], [3, 5, 10]], ['Vehicle', 4, [4, 11], [3, 8, 12]], ['Children', 5, [2, 5, 11], [1, 4, 10]], ['Higher education', 9, [4, 9, 11], [3, 8, 12]],
@@ -663,6 +693,6 @@
     siderealAll, sunSid, moonSid, ascendantTrop, sunTimes, panchang, tithiName, lunarMonth, chart, vimshottari, currentDasha,
     saturnStatus, tarabala, chandrabala, monthDays, muhuratScore, transits, kpLords, dignity, yogas,
     deltaT, setNodeMode: (m) => { NODE_MODE = m === 'true' ? 'true' : 'mean'; }, nodeMode: () => NODE_MODE, lstAt: (jd, lon) => lst(jd, lon),
-    DASHA_LORDS, DASHA_YRS, prevChange, nextChange, tithiIndex, nakIndex, chartAt, placidus, kpEvents, varshphal, ashtakavarga, AV,
+    DASHA_LORDS, DASHA_YRS, prevChange, nextChange, tithiIndex, nakIndex, chartAt, placidus, kpEvents, kpView, kpAyanamsa, rulingPlanets, kpHouses, varshphal, ashtakavarga, AV,
   };
 })(typeof window !== 'undefined' ? window : globalThis);
