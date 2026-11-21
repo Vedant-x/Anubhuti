@@ -20,6 +20,7 @@
     route: 'today', views: {}, cleanup: null, chartCache: new Map(),
     settings() { return S.state.settings; },
     profiles() { return S.state.profiles; },
+    me() { const id = S.state.settings.me; return S.state.profiles.find((p) => p.id === id) || null; },
     activeProfile() { const id = S.state.settings.activeProfile; return S.state.profiles.find((p) => p.id === id) || S.state.profiles[0] || null; },
     place() { return S.state.settings.place || (app.activeProfile() && app.activeProfile().currentPlace) || DEFAULT_PLACE; },
     tz() { return app.place().tz; },
@@ -58,7 +59,7 @@
     $$('[data-r]').forEach((a) => { if (a.dataset.r === app.route) a.setAttribute('aria-current', 'page'); else a.removeAttribute('aria-current'); });
     const p = app.activeProfile();
     $$('.who').forEach((b) => {
-      b.innerHTML = p ? '<span class="avatar">' + esc(initials(p.name)) + '</span><span class="grow"><b style="display:block;font-size:.88rem;line-height:1.2">' + esc(p.name) + '</b><span class="tiny muted">' + esc(p.relation || 'Active profile') + '</span></span>'
+      b.innerHTML = p ? '<span class="avatar">' + esc(initials(p.name)) + '</span><span class="grow"><span class="tiny muted" style="display:block;line-height:1.1">Viewing' + (app.me() && app.me().id === p.id ? ' (you)' : '') + '</span><b style="display:block;font-size:.88rem;line-height:1.2">' + esc(p.name) + '</b></span>'
         : '<span class="avatar">+</span><span class="grow small"><b>Add a person</b></span>';
     });
     const sy = $('#sync');
@@ -119,6 +120,7 @@
       '<label class="field"><span>Gender (used for Kua)</span><select class="input" id="pf-gender"><option value="male">Male</option><option value="female">Female</option></select></label></div>' +
       '<div class="grid g2"><label class="field"><span>Date of birth</span><input class="input" type="date" id="pf-dob" required value="' + esc(p.dob) + '"></label>' +
       '<label class="field"><span>Time of birth (to the second if known)</span><input class="input" type="time" step="1" id="pf-tob" value="' + esc(p.tobUnknown ? '' : p.tob) + '"></label></div>' +
+      '<label class="check" style="background:var(--indigo-soft);padding:8px 10px;border-radius:9px"><input type="checkbox" id="pf-me" ' + (p.id && S.state.settings.me === p.id ? 'checked' : '') + '> <span><b>This is me</b> <span class="small muted">(set as my profile; Home and daily guidance will use it)</span></span></label>' +
       '<label class="check"><input type="checkbox" id="pf-unk" ' + (p.tobUnknown ? 'checked' : '') + '> I don’t know the birth time (uses 12:00; lagna and houses will be unreliable)</label>' +
       '<label class="field combo"><span>Place of birth (town, area, district, state)</span><input class="input" id="pf-place" autocomplete="off" value="' + esc(p.place.name || '') + '" placeholder="e.g. Andheri West, Mumbai or a village name"></label>' +
       '<div class="row" style="gap:6px"><button type="button" class="btn sm accent" id="pf-find">' + icon('search') + 'Find exact location</button><button type="button" class="btn sm" id="pf-here">' + icon('pin') + 'Use my current location</button></div><div id="pf-res" class="stack-sm"></div>' +
@@ -164,8 +166,10 @@
       if (msg) { err.textContent = msg; err.hidden = false; err.scrollIntoView({ block: 'center', behavior: 'smooth' }); toast(msg); const fld = !name ? '#pf-name' : !/^\d{4}-\d{2}-\d{2}$/.test(dob) ? '#pf-dob' : !unk && !tob ? '#pf-tob' : '#pf-lat'; const fe = $(fld, f); fe && fe.focus(); return; }
       Object.assign(p, { name, dob, tob: unk ? '12:00' : tob, tobUnknown: unk, gender: $('#pf-gender', f).value, relation: $('#pf-rel', f).value.trim(), rituals: $('#pf-rit', f).value.trim(), place: { name: $('#pf-place', f).value.trim() || lat.toFixed(2) + ', ' + lon.toFixed(2), lat, lon, tz } });
       const saved = S.saveProfile(p);
+      const isMe = $('#pf-me', f).checked || (/^self$/i.test(p.relation) && !S.state.settings.me);
+      if (isMe) S.saveSettings({ me: saved.id }); else if (S.state.settings.me === saved.id && !$('#pf-me', f).checked) S.saveSettings({ me: null });
       if (isNew || !S.state.settings.activeProfile) S.saveSettings({ activeProfile: saved.id });
-      s.close(); toast((isNew ? 'Kundli saved: ' : 'Updated: ') + name + (p.relation ? ' (' + p.relation + ')' : ''), 4000);
+      s.close(); toast((isNew ? 'Kundli saved: ' : 'Updated: ') + name + (p.relation ? ' (' + p.relation + ')' : '') + (isMe ? ' · set as your profile' : ''), 4000);
       after && after(saved);
     });
   }
@@ -241,6 +245,7 @@
         '<div class="field"><span>Kundli style</span><div class="seg" id="cstyle">' + [['north', 'North Indian'], ['south', 'South Indian']].map(([v, l]) => '<button data-v="' + v + '" aria-pressed="' + ((st.chartStyle || 'north') === v) + '">' + l + '</button>').join('') + '</div></div>' +
         '<div class="field"><span>Rahu / Ketu</span><div class="seg" id="node"><button data-v="mean" aria-pressed="' + ((st.node || 'mean') === 'mean') + '">Mean node</button><button data-v="true" aria-pressed="' + (st.node === 'true') + '">True node</button></div><span class="small muted">Most Indian panchangs use the mean node; KP and some software use the true node.</span></div>' +
         '<div class="field"><span>Clock</span><div class="seg" id="clock"><button data-v="12" aria-pressed="' + !st.h24 + '">12-hour</button><button data-v="24" aria-pressed="' + !!st.h24 + '">24-hour</button></div></div></div>' +
+        '<div class="card stack"><h3>My profile</h3><p class="small muted">Who is using this app? Home greets you and daily guidance uses your chart. Viewing someone else’s kundli does not change this.</p><select class="input" id="me-sel"><option value="">Not set</option>' + app.profiles().map((x) => '<option value="' + x.id + '"' + (st.me === x.id ? ' selected' : '') + '>' + esc(x.name) + (x.relation ? ' (' + esc(x.relation) + ')' : '') + '</option>').join('') + '</select><button class="btn sm" type="button" data-act-add>' + icon('plus') + 'Add my details</button></div>' +
         '<div class="card stack"><h3>Branding on reports</h3><label class="field"><span>Name printed on Kundli and Vastu reports</span><input class="input" id="cons" value="' + esc(st.consultant == null ? 'Vastu Acharya Rashmi Pathre' : st.consultant) + '" placeholder="Leave empty for no name"></label><p class="small muted">Reports show “Prepared with Anubhuti by …”.</p></div>' +
         '<div class="card stack"><h3>Your location</h3><p class="small muted">Used for Today’s panchang, Rahu Kaal, choghadiya and the calendar.</p><label class="field combo"><span>City</span><input class="input" id="loc" autocomplete="off" value="' + esc(pl.name) + '"></label><p class="small mono muted" id="loc-meta">' + pl.lat.toFixed(2) + ', ' + pl.lon.toFixed(2) + ' · UTC' + (pl.tz >= 0 ? '+' : '') + pl.tz + '</p></div>' +
         '<div class="card stack"><h3>Ask Anubhuti</h3><div class="field"><span>Answer depth</span><div class="seg" id="depth">' + [['quick', 'Fast'], ['default', 'Balanced'], ['complex', 'Deep']].map(([v, l]) => '<button data-v="' + v + '" aria-pressed="' + ((st.depth || 'default') === v) + '">' + l + '</button>').join('') + '</div></div><p class="small muted">Ask Anubhuti runs on your own Claude account when this page is open in Claude. Deep answers take longer.</p>' +
@@ -254,6 +259,7 @@
       seg('node', (v) => { S.saveSettings({ node: v }); toast(v === 'true' ? 'Using the true node' : 'Using the mean node'); });
       seg('depth', (v) => S.saveSettings({ depth: v }));
       $('#speak', el).addEventListener('change', (e) => S.saveSettings({ autoSpeak: e.target.checked }));
+      $('#me-sel', el).addEventListener('change', (e) => { S.saveSettings({ me: e.target.value || null }); toast(e.target.value ? 'Your profile is set' : 'Profile cleared'); });
       $('#cons', el).addEventListener('change', (e) => { S.saveSettings({ consultant: e.target.value.trim() }); toast('Saved'); });
       placePicker($('#loc', el), (p) => { S.saveSettings({ place: p }); $('#loc-meta', el).textContent = p.lat.toFixed(2) + ', ' + p.lon.toFixed(2) + ' · UTC' + (p.tz >= 0 ? '+' : '') + p.tz; toast('Location set to ' + p.name); });
       $('#bk-dl', el).addEventListener('click', async () => {

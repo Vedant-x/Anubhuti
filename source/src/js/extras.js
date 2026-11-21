@@ -50,11 +50,19 @@
     return { diff, overdue: !r.done && diff < 0, soon: !r.done && diff >= 0 && diff <= 7 };
   }
 
+  function setMe() {
+    const ps = app.profiles();
+    if (!ps.length) return app.editProfile(null, (saved) => S.saveSettings({ me: saved.id }));
+    const sh = sheet('<h2>Which one is you?</h2><p class="small muted" style="margin:-8px 0 12px">Home greets you and daily guidance uses your chart. Other kundlis stay saved for viewing.</p><div class="stack-sm">' + ps.map((x) => '<button class="who" data-me="' + x.id + '"><span class="avatar">' + esc(initials(x.name)) + '</span><span class="grow"><b>' + esc(x.name) + '</b><br><span class="tiny muted">' + esc(x.relation || '') + '</span></span></button>').join('') + '</div><div class="sheet-actions"><button class="btn" data-close>Cancel</button><button class="btn primary" data-newme>' + icon('plus') + 'I’m not listed: add me</button></div>');
+    sh.el.addEventListener('click', (e) => { const b = e.target.closest('[data-me]'); if (b) { S.saveSettings({ me: b.dataset.me }); sh.close(); toast('Your profile is set'); } if (e.target.closest('[data-newme]')) { sh.close(); app.editProfile(null, (saved) => S.saveSettings({ me: saved.id })); } });
+  }
+  app.setMe = setMe;
+
   /* ---------- Home ---------- */
   app.views.home = {
     render(el) {
       const draw = () => {
-        const p = app.activeProfile(), pl = app.place(), pc = A.panchang(A.todayStr(pl.tz), pl);
+        const p = app.me(), pl = app.place(), pc = A.panchang(A.todayStr(pl.tz), pl);
         const rem = S.state.reminders || [], over = rem.filter((r) => dueInfo(r).overdue).length, soon = rem.filter((r) => dueInfo(r).soon).length;
         const bdays = app.profiles().map((x) => ({ p: x, b: nextBirthday(x) })).filter((x) => x.b.days <= 30).sort((a, b) => a.b.days - b.b.days);
         const hr = new Date().getHours(), greet = hr < 12 ? 'Good morning' : hr < 17 ? 'Good afternoon' : 'Good evening';
@@ -67,14 +75,14 @@
           ['remedies', 'Remedies', 'Rudraksha, gems & mantras', 'lamp', 'mint'], ['calendar', 'Muhurat calendar', 'Good days for big moments', 'calendar', 'mint'],
           ['calc', 'Calculators', 'Aayadi, degrees, land units', 'numbers', 'sky'], ['compass', 'Compass', '16 zones & entrances', 'compass', 'rose'],
         ];
-        el.innerHTML = '<div class="home-hero"><div><div class="kicker">' + greet + '</div><h1>' + (p ? 'Namaste, ' + esc(p.name.split(' ')[0]) : 'Namaste') + '</h1><p class="lede">' + esc(pc.vara.name) + ' · ' + esc(pc.month) + ' ' + esc(pc.tithi.name) + ' · ' + esc(pc.nakshatra.name) + ' nakshatra' + (pc.periods ? ' · Rahu Kaal ' + app.time(pc.periods.rahu.start) + '–' + app.time(pc.periods.rahu.end) : '') + '</p></div></div>' +
+        el.innerHTML = '<div class="home-hero"><div><div class="kicker">' + greet + '</div><h1>' + (p ? 'Namaste, ' + esc(p.name.split(' ')[0]) : 'Namaste') + '</h1>' + (p ? '' : '<p class="small" style="margin:6px 0"><button class="btn sm" data-h="me">' + icon('people') + 'Set my profile</button> <span class="muted">so Anubhuti knows who you are</span></p>') + '<p class="lede">' + esc(pc.vara.name) + ' · ' + esc(pc.month) + ' ' + esc(pc.tithi.name) + ' · ' + esc(pc.nakshatra.name) + ' nakshatra' + (pc.periods ? ' · Rahu Kaal ' + app.time(pc.periods.rahu.start) + '–' + app.time(pc.periods.rahu.end) : '') + '</p></div></div>' +
           '<div class="home-grid"><div class="tiles">' + T.map(([r, t, sub, ic, tone, big]) => '<a class="tile tone-' + tone + (big ? ' big' : '') + '" href="#' + r.split(':')[0] + '" data-r2="' + r + '"><span class="tile-ic">' + icon(ic) + '</span><span class="tile-t">' + t + '</span><span class="tile-s">' + sub + '</span>' + (big ? '<span class="tile-cta">Open Vastu editor ' + icon('right') + '</span>' : '<span class="tile-go">' + icon('right') + '</span>') + '</a>').join('') + '</div>' +
           '<div class="stack"><div class="card side-card"><div class="row-between"><h3>' + icon('people') + ' Clients</h3><a class="small" href="#clients">Open</a></div><div class="grid g2" style="gap:8px;margin:10px 0"><div class="mini-stat bad"><span>Overdue</span><b>' + over + '</b></div><div class="mini-stat good"><span>Next 7 days</span><b>' + soon + '</b></div></div>' +
           (S.state.clients.length ? '<p class="small muted">' + S.state.clients.length + ' client' + (S.state.clients.length > 1 ? 's' : '') + ' saved.</p>' : '<p class="small muted">No clients yet. Add your first client to get started.</p>') + '<div class="row" style="gap:6px"><button class="btn sm" data-h="client">' + icon('plus') + 'Add client</button><button class="btn sm" data-h="reminder">' + icon('calendar') + 'Add reminder</button></div></div>' +
           '<a class="card ask-card" href="#ask"><span class="tiny" style="letter-spacing:.12em;opacity:.8">AI SPIRITUAL GUIDE</span><h2>Ask Anubhuti</h2><p class="small">Vastu · Astrology · Numerology · Tarot, answered from your own charts and plans.</p><span class="btn sm" style="align-self:flex-start;background:#fff;color:var(--indigo);border:0">' + icon('ask') + 'Open chat</span></a>' +
           '<div class="card side-card"><h3>' + icon('star') + ' Upcoming birthdays</h3>' + (bdays.length ? bdays.map((x) => '<div class="row-between small" style="padding:6px 0;border-bottom:1px dashed var(--line)"><span><b>' + esc(x.p.name) + '</b> turns ' + x.b.age + '</span><span class="chip ' + (x.b.days <= 3 ? 'great' : 'accent') + '">' + relWord(x.b.days) + '</span></div>').join('') : '<p class="small muted">No birthdays in the next 30 days.</p>') + '</div></div></div>';
         el.querySelectorAll('[data-r2="vastu:blank"]').forEach((a) => a.addEventListener('click', () => lsSet('vastuBlank', true)));
-        el.querySelectorAll('[data-h]').forEach((b) => b.addEventListener('click', () => (b.dataset.h === 'client' ? editClient() : editReminder())));
+        el.querySelectorAll('[data-h]').forEach((b) => b.addEventListener('click', () => (b.dataset.h === 'me' ? setMe() : b.dataset.h === 'client' ? editClient() : editReminder())));
       };
       draw(); this.onData = draw;
     },
@@ -212,10 +220,10 @@
           (ps.length ? (up.filter((x) => x.b.days <= 60).length ? '<div class="bday-strip">' + up.filter((x) => x.b.days <= 60).map((x) => '<div class="bday"><span class="avatar">' + esc(initials(x.p.name)) + '</span><div><b>' + esc(x.p.name.split(' ')[0]) + '</b><div class="tiny muted">turns ' + x.b.age + ' ' + relWord(x.b.days) + '</div></div></div>').join('') + '</div>' : '') +
             '<div class="people">' + ps.map((p) => {
               const ch = app.chart(p), n = N.dobNumbers(p.dob), b = nextBirthday(p);
-              return '<div class="card person' + (cur && cur.id === p.id ? ' active' : '') + '"><span class="avatar" style="width:46px;height:46px;font-size:1.05rem">' + esc(initials(p.name)) + '</span><div class="grow stack-sm"><div class="row-between"><b>' + esc(p.name) + '</b>' + (cur && cur.id === p.id ? '<span class="chip accent">Active</span>' : '') + '</div><div class="small muted">' + esc(p.relation || '') + (p.relation ? ' · ' : '') + esc(app.fmtDob(p)) + '</div>' +
+              return '<div class="card person' + (cur && cur.id === p.id ? ' active' : '') + '"><span class="avatar" style="width:46px;height:46px;font-size:1.05rem">' + esc(initials(p.name)) + '</span><div class="grow stack-sm"><div class="row-between"><b>' + esc(p.name) + '</b><span class="row" style="gap:4px">' + (app.me() && app.me().id === p.id ? '<span class="chip great">You</span>' : '') + (cur && cur.id === p.id ? '<span class="chip accent">Viewing</span>' : '') + '</span></div><div class="small muted">' + esc(p.relation || '') + (p.relation ? ' · ' : '') + esc(app.fmtDob(p)) + '</div>' +
                 '<div class="row small" style="gap:6px"><span class="chip">Lagna ' + D.SIGNS[ch.lagna].sa + '</span><span class="chip">Moon ' + D.SIGNS[ch.moonSign].sa + '</span><span class="chip">' + D.NAKSHATRAS[ch.moonNak].name + '</span><span class="chip">Mulank ' + n.mulank + '</span></div>' +
                 '<div class="small">🎂 Birthday ' + relWord(b.days) + ' (turns ' + b.age + ')</div>' + (p.rituals ? '<div class="small callout" style="padding:6px 10px"><b>Rituals:</b> ' + esc(p.rituals) + '</div>' : '') +
-                '<div class="row" style="gap:6px;margin-top:4px"><button class="btn sm" data-use="' + p.id + '" data-go="kundli">' + icon('kundli') + 'Kundli</button><button class="btn sm" data-use="' + p.id + '" data-go="varsha">' + icon('calendar') + 'Varshphal ' + new Date().getFullYear() + '</button><button class="btn sm ghost" data-use="' + p.id + '">Make active</button><button class="btn sm ghost" data-edit="' + p.id + '">' + icon('edit') + 'Edit</button></div></div></div>';
+                '<div class="row" style="gap:6px;margin-top:4px"><button class="btn sm" data-use="' + p.id + '" data-go="kundli">' + icon('kundli') + 'Kundli</button><button class="btn sm" data-use="' + p.id + '" data-go="varsha">' + icon('calendar') + 'Varshphal ' + new Date().getFullYear() + '</button><button class="btn sm ghost" data-use="' + p.id + '">View</button>' + (app.me() && app.me().id === p.id ? '' : '<button class="btn sm ghost" data-setme="' + p.id + '">' + icon('check') + 'Set as my profile</button>') + '<button class="btn sm ghost" data-edit="' + p.id + '">' + icon('edit') + 'Edit</button></div></div></div>';
             }).join('') + '</div>'
             : '<div class="card empty dashed">' + icon('people') + '<div><p>No family members yet. Tap <b>Add member</b> to save a kundli.</p></div></div>');
       };
@@ -223,8 +231,9 @@
       el.addEventListener('click', (e) => {
         if (e.target.closest('[data-new]')) app.editProfile();
         const u = e.target.closest('[data-use]');
-        if (u) { S.saveSettings({ activeProfile: u.dataset.use }); const g = u.dataset.go; if (g === 'kundli') { lsSet('ktab', 'overview'); app.go('kundli'); } else if (g === 'varsha') { lsSet('ktab', 'varsha'); lsSet('kyear', new Date().getFullYear()); app.go('kundli'); } else toast('Active profile changed'); }
+        if (u) { S.saveSettings({ activeProfile: u.dataset.use }); const g = u.dataset.go; if (g === 'kundli') { lsSet('ktab', 'overview'); app.go('kundli'); } else if (g === 'varsha') { lsSet('ktab', 'varsha'); lsSet('kyear', new Date().getFullYear()); app.go('kundli'); } else toast('Now viewing ' + ((app.activeProfile() || {}).name || '')); }
         const ed = e.target.closest('[data-edit]'); if (ed) app.editProfile(app.profiles().find((p) => p.id === ed.dataset.edit));
+        const sm = e.target.closest('[data-setme]'); if (sm) { S.saveSettings({ me: sm.dataset.setme }); toast('Your profile is set'); }
       });
       this.onData = draw;
     },

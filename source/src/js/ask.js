@@ -72,7 +72,7 @@
     onData() {},
     render(el) {
       const caps = S.caps;
-      const p = app.activeProfile();
+      const p = app.activeProfile(), meP = app.me();
       let history = lsGet('askHistory', []);
       const ctxOn = Object.assign({ chart: true, num: true, vastu: false, today: true, image: false }, lsGet('askCtx', {}));
       let ctl = null, busy = false;
@@ -103,7 +103,7 @@
         return '<div class="msg bot" data-i="' + i + '"><div class="body">' + md(m.content) + '</div>' + (m.tools && m.tools.length ? '<div class="tools-used">Checked: ' + esc(m.tools.join(', ')) + '</div>' : '') + '<div class="row" style="gap:4px;margin-top:6px"><button class="btn sm ghost" data-copy="' + i + '">' + icon('copy') + 'Copy</button>' + (caps.tts ? '<button class="btn sm ghost" data-speak="' + i + '">' + icon('speaker') + 'Listen</button>' : '') + '</div></div>';
       }
       function drawChat() {
-        chat.innerHTML = history.length ? history.map(bubble).join('') : '<div class="card empty" style="margin-top:8px">' + icon('ask') + '<div><h3>Namaste' + (p ? ', ' + esc(p.name.split(' ')[0]) : '') + '</h3><p>Pick a suggestion below or ask your own question.</p></div></div>';
+        chat.innerHTML = history.length ? history.map(bubble).join('') : '<div class="card empty" style="margin-top:8px">' + icon('ask') + '<div><h3>Namaste' + (meP ? ', ' + esc(meP.name.split(' ')[0]) : '') + '</h3><p>Pick a suggestion below or ask your own question.</p></div></div>';
         $('#sugg', el).hidden = history.length > 0;
       }
       drawChat();
@@ -126,6 +126,7 @@
         if (ctxOn.today) parts.push(todayText());
         if (ctxOn.vastu && vastuProj()) parts.push('VASTU PLAN:\n' + D.vastuView.summaryText(vastuProj()));
         if (!pr) parts.push('No person is saved yet; if the question needs a chart, ask for birth date, time and place.');
+        parts.push('The app user (me) is ' + (app.me() ? app.me().name : 'not set') + '; the chart being viewed is ' + (pr ? pr.name : 'none') + '.');
         parts.push('Saved people: ' + (app.profiles().map((x) => x.name + (x.relation ? ' (' + x.relation + ')' : '')).join(', ') || 'none') + '. Today is ' + A.todayStr(app.tz()) + '.');
         return 'DATA (computed by the app):\n' + parts.join('\n\n');
       }

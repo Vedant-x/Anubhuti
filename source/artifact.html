@@ -2237,6 +2237,7 @@ table.t { width: 100%; border-collapse: collapse; font-size: .88rem; }
     route: 'today', views: {}, cleanup: null, chartCache: new Map(),
     settings() { return S.state.settings; },
     profiles() { return S.state.profiles; },
+    me() { const id = S.state.settings.me; return S.state.profiles.find((p) => p.id === id) || null; },
     activeProfile() { const id = S.state.settings.activeProfile; return S.state.profiles.find((p) => p.id === id) || S.state.profiles[0] || null; },
     place() { return S.state.settings.place || (app.activeProfile() && app.activeProfile().currentPlace) || DEFAULT_PLACE; },
     tz() { return app.place().tz; },
@@ -2275,7 +2276,7 @@ table.t { width: 100%; border-collapse: collapse; font-size: .88rem; }
     $$('[data-r]').forEach((a) => { if (a.dataset.r === app.route) a.setAttribute('aria-current', 'page'); else a.removeAttribute('aria-current'); });
     const p = app.activeProfile();
     $$('.who').forEach((b) => {
-      b.innerHTML = p ? '<span class="avatar">' + esc(initials(p.name)) + '</span><span class="grow"><b style="display:block;font-size:.88rem;line-height:1.2">' + esc(p.name) + '</b><span class="tiny muted">' + esc(p.relation || 'Active profile') + '</span></span>'
+      b.innerHTML = p ? '<span class="avatar">' + esc(initials(p.name)) + '</span><span class="grow"><span class="tiny muted" style="display:block;line-height:1.1">Viewing' + (app.me() && app.me().id === p.id ? ' (you)' : '') + '</span><b style="display:block;font-size:.88rem;line-height:1.2">' + esc(p.name) + '</b></span>'
         : '<span class="avatar">+</span><span class="grow small"><b>Add a person</b></span>';
     });
     const sy = $('#sync');
@@ -2336,6 +2337,7 @@ table.t { width: 100%; border-collapse: collapse; font-size: .88rem; }
       '<label class="field"><span>Gender (used for Kua)</span><select class="input" id="pf-gender"><option value="male">Male</option><option value="female">Female</option></select></label></div>' +
       '<div class="grid g2"><label class="field"><span>Date of birth</span><input class="input" type="date" id="pf-dob" required value="' + esc(p.dob) + '"></label>' +
       '<label class="field"><span>Time of birth (to the second if known)</span><input class="input" type="time" step="1" id="pf-tob" value="' + esc(p.tobUnknown ? '' : p.tob) + '"></label></div>' +
+      '<label class="check" style="background:var(--indigo-soft);padding:8px 10px;border-radius:9px"><input type="checkbox" id="pf-me" ' + (p.id && S.state.settings.me === p.id ? 'checked' : '') + '> <span><b>This is me</b> <span class="small muted">(set as my profile; Home and daily guidance will use it)</span></span></label>' +
       '<label class="check"><input type="checkbox" id="pf-unk" ' + (p.tobUnknown ? 'checked' : '') + '> I don’t know the birth time (uses 12:00; lagna and houses will be unreliable)</label>' +
       '<label class="field combo"><span>Place of birth (town, area, district, state)</span><input class="input" id="pf-place" autocomplete="off" value="' + esc(p.place.name || '') + '" placeholder="e.g. Andheri West, Mumbai or a village name"></label>' +
       '<div class="row" style="gap:6px"><button type="button" class="btn sm accent" id="pf-find">' + icon('search') + 'Find exact location</button><button type="button" class="btn sm" id="pf-here">' + icon('pin') + 'Use my current location</button></div><div id="pf-res" class="stack-sm"></div>' +
@@ -2381,8 +2383,10 @@ table.t { width: 100%; border-collapse: collapse; font-size: .88rem; }
       if (msg) { err.textContent = msg; err.hidden = false; err.scrollIntoView({ block: 'center', behavior: 'smooth' }); toast(msg); const fld = !name ? '#pf-name' : !/^\d{4}-\d{2}-\d{2}$/.test(dob) ? '#pf-dob' : !unk && !tob ? '#pf-tob' : '#pf-lat'; const fe = $(fld, f); fe && fe.focus(); return; }
       Object.assign(p, { name, dob, tob: unk ? '12:00' : tob, tobUnknown: unk, gender: $('#pf-gender', f).value, relation: $('#pf-rel', f).value.trim(), rituals: $('#pf-rit', f).value.trim(), place: { name: $('#pf-place', f).value.trim() || lat.toFixed(2) + ', ' + lon.toFixed(2), lat, lon, tz } });
       const saved = S.saveProfile(p);
+      const isMe = $('#pf-me', f).checked || (/^self$/i.test(p.relation) && !S.state.settings.me);
+      if (isMe) S.saveSettings({ me: saved.id }); else if (S.state.settings.me === saved.id && !$('#pf-me', f).checked) S.saveSettings({ me: null });
       if (isNew || !S.state.settings.activeProfile) S.saveSettings({ activeProfile: saved.id });
-      s.close(); toast((isNew ? 'Kundli saved: ' : 'Updated: ') + name + (p.relation ? ' (' + p.relation + ')' : ''), 4000);
+      s.close(); toast((isNew ? 'Kundli saved: ' : 'Updated: ') + name + (p.relation ? ' (' + p.relation + ')' : '') + (isMe ? ' · set as your profile' : ''), 4000);
       after && after(saved);
     });
   }
@@ -2458,6 +2462,7 @@ table.t { width: 100%; border-collapse: collapse; font-size: .88rem; }
         '<div class="field"><span>Kundli style</span><div class="seg" id="cstyle">' + [['north', 'North Indian'], ['south', 'South Indian']].map(([v, l]) => '<button data-v="' + v + '" aria-pressed="' + ((st.chartStyle || 'north') === v) + '">' + l + '</button>').join('') + '</div></div>' +
         '<div class="field"><span>Rahu / Ketu</span><div class="seg" id="node"><button data-v="mean" aria-pressed="' + ((st.node || 'mean') === 'mean') + '">Mean node</button><button data-v="true" aria-pressed="' + (st.node === 'true') + '">True node</button></div><span class="small muted">Most Indian panchangs use the mean node; KP and some software use the true node.</span></div>' +
         '<div class="field"><span>Clock</span><div class="seg" id="clock"><button data-v="12" aria-pressed="' + !st.h24 + '">12-hour</button><button data-v="24" aria-pressed="' + !!st.h24 + '">24-hour</button></div></div></div>' +
+        '<div class="card stack"><h3>My profile</h3><p class="small muted">Who is using this app? Home greets you and daily guidance uses your chart. Viewing someone else’s kundli does not change this.</p><select class="input" id="me-sel"><option value="">Not set</option>' + app.profiles().map((x) => '<option value="' + x.id + '"' + (st.me === x.id ? ' selected' : '') + '>' + esc(x.name) + (x.relation ? ' (' + esc(x.relation) + ')' : '') + '</option>').join('') + '</select><button class="btn sm" type="button" data-act-add>' + icon('plus') + 'Add my details</button></div>' +
         '<div class="card stack"><h3>Branding on reports</h3><label class="field"><span>Name printed on Kundli and Vastu reports</span><input class="input" id="cons" value="' + esc(st.consultant == null ? 'Vastu Acharya Rashmi Pathre' : st.consultant) + '" placeholder="Leave empty for no name"></label><p class="small muted">Reports show “Prepared with Anubhuti by …”.</p></div>' +
         '<div class="card stack"><h3>Your location</h3><p class="small muted">Used for Today’s panchang, Rahu Kaal, choghadiya and the calendar.</p><label class="field combo"><span>City</span><input class="input" id="loc" autocomplete="off" value="' + esc(pl.name) + '"></label><p class="small mono muted" id="loc-meta">' + pl.lat.toFixed(2) + ', ' + pl.lon.toFixed(2) + ' · UTC' + (pl.tz >= 0 ? '+' : '') + pl.tz + '</p></div>' +
         '<div class="card stack"><h3>Ask Anubhuti</h3><div class="field"><span>Answer depth</span><div class="seg" id="depth">' + [['quick', 'Fast'], ['default', 'Balanced'], ['complex', 'Deep']].map(([v, l]) => '<button data-v="' + v + '" aria-pressed="' + ((st.depth || 'default') === v) + '">' + l + '</button>').join('') + '</div></div><p class="small muted">Ask Anubhuti runs on your own Claude account when this page is open in Claude. Deep answers take longer.</p>' +
@@ -2471,6 +2476,7 @@ table.t { width: 100%; border-collapse: collapse; font-size: .88rem; }
       seg('node', (v) => { S.saveSettings({ node: v }); toast(v === 'true' ? 'Using the true node' : 'Using the mean node'); });
       seg('depth', (v) => S.saveSettings({ depth: v }));
       $('#speak', el).addEventListener('change', (e) => S.saveSettings({ autoSpeak: e.target.checked }));
+      $('#me-sel', el).addEventListener('change', (e) => { S.saveSettings({ me: e.target.value || null }); toast(e.target.value ? 'Your profile is set' : 'Profile cleared'); });
       $('#cons', el).addEventListener('change', (e) => { S.saveSettings({ consultant: e.target.value.trim() }); toast('Saved'); });
       placePicker($('#loc', el), (p) => { S.saveSettings({ place: p }); $('#loc-meta', el).textContent = p.lat.toFixed(2) + ', ' + p.lon.toFixed(2) + ' · UTC' + (p.tz >= 0 ? '+' : '') + p.tz; toast('Location set to ' + p.name); });
       $('#bk-dl', el).addEventListener('click', async () => {
@@ -2672,7 +2678,7 @@ table.t { width: 100%; border-collapse: collapse; font-size: .88rem; }
           stat('Karana', pc.karana.name, 'till ' + app.time(pc.karana.ends, tz)) +
           stat('Moon · Sun', D.SIGNS[pc.moonSign].sa, 'Sun in ' + D.SIGNS[pc.sunSign].sa) + '</div>' +
           '<hr class="sep">' + timeline(pc, tz) + '</div>' +
-          personal(app.activeProfile(), pc, now) + '</div>' +
+          personal(app.me() || app.activeProfile(), pc, now) + '</div>' +
           '<div class="grid g2" style="margin-top:16px">' +
           '<div class="card"><div class="card-head"><h3>Choghadiya</h3><span class="small muted">' + (nowChog ? 'Now: <b>' + nowChog.name + '</b>' : '') + (nowHora ? ' · Hora of <b>' + nowHora.lord + '</b>' : '') + '</span></div>' +
           (P ? '<h4 style="margin-bottom:6px">Day</h4><div class="chog">' + P.chogDay.map((c) => chogCell(c, now, tz)).join('') + '</div><h4 style="margin:12px 0 6px">Night</h4><div class="chog">' + P.chogNight.map((c) => chogCell(c, now, tz)).join('') + '</div>' : '<p class="muted">No sunrise at this latitude today.</p>') +
@@ -2680,7 +2686,7 @@ table.t { width: 100%; border-collapse: collapse; font-size: .88rem; }
           '<div class="card"><div class="card-head"><h3>Hora (planetary hours)</h3><span class="small muted">Brahma muhurta ' + (P ? app.time(P.brahma.start, tz) + '–' + app.time(P.brahma.end, tz) : '—') + '</span></div>' +
           (P ? '<div class="table-wrap"><table class="t"><thead><tr><th>Day hora</th><th>Time</th><th>Night hora</th><th>Time</th></tr></thead><tbody>' + P.horas.slice(0, 12).map((h, i) => { const n = P.horas[12 + i]; return '<tr class="' + ((now >= h.start && now < h.end) || (now >= n.start && now < n.end) ? 'now' : '') + '"><td>' + h.lord + '</td><td class="num">' + app.time(h.start, tz) + '</td><td>' + n.lord + '</td><td class="num">' + app.time(n.start, tz) + '</td></tr>'; }).join('') + '</tbody></table></div>' : '') + '</div></div>' +
           '<div class="card" style="margin-top:16px"><div class="card-head"><h3>Planets now (gochar)</h3><span class="small muted">Sidereal, Lahiri · ' + (isToday ? 'live' : 'at sunrise') + '</span></div><div class="planet-strip">' +
-          D.PLANET_ORDER.map((p) => { const t = tr[p], pr = app.activeProfile(), ch = pr && app.chart(pr); const h = ch ? ((t.sign - ch.moonSign + 12) % 12) + 1 : null; return '<div title="' + p + ' at ' + A.fmtDeg(t.deg) + ' ' + D.SIGNS[t.sign].en + '"><div class="pg">' + D.PLANETS[p].sa + (t.retro && p !== 'Rahu' && p !== 'Ketu' ? ' <span class="tiny" style="color:var(--bad)">R</span>' : '') + '</div><div class="ps">' + D.SIGNS[t.sign].sa + ' ' + Math.floor(t.deg) + '°</div><div class="ps">' + D.NAKSHATRAS[t.nak].name + '</div>' + (h ? '<div class="ps">' + h + ' from Moon</div>' : '') + '</div>'; }).join('') + '</div></div>' +
+          D.PLANET_ORDER.map((p) => { const t = tr[p], pr = app.me() || app.activeProfile(), ch = pr && app.chart(pr); const h = ch ? ((t.sign - ch.moonSign + 12) % 12) + 1 : null; return '<div title="' + p + ' at ' + A.fmtDeg(t.deg) + ' ' + D.SIGNS[t.sign].en + '"><div class="pg">' + D.PLANETS[p].sa + (t.retro && p !== 'Rahu' && p !== 'Ketu' ? ' <span class="tiny" style="color:var(--bad)">R</span>' : '') + '</div><div class="ps">' + D.SIGNS[t.sign].sa + ' ' + Math.floor(t.deg) + '°</div><div class="ps">' + D.NAKSHATRAS[t.nak].name + '</div>' + (h ? '<div class="ps">' + h + ' from Moon</div>' : '') + '</div>'; }).join('') + '</div></div>' +
           '<div class="row" style="margin-top:16px"><a class="btn accent" href="#ask" data-brief>' + icon('ask') + 'Ask Anubhuti for my daily brief</a><a class="btn" href="#calendar">' + icon('calendar') + 'Find a muhurat</a></div>';
         el.querySelectorAll('[data-d]').forEach((b) => b.addEventListener('click', () => { st.date = A.addDays(st.date, +b.dataset.d); draw(); }));
         const t = el.querySelector('[data-today]'); t && t.addEventListener('click', () => { st.date = A.todayStr(app.tz()); draw(); });
@@ -4245,7 +4251,7 @@ table.t { width: 100%; border-collapse: collapse; font-size: .88rem; }
     onData() {},
     render(el) {
       const caps = S.caps;
-      const p = app.activeProfile();
+      const p = app.activeProfile(), meP = app.me();
       let history = lsGet('askHistory', []);
       const ctxOn = Object.assign({ chart: true, num: true, vastu: false, today: true, image: false }, lsGet('askCtx', {}));
       let ctl = null, busy = false;
@@ -4276,7 +4282,7 @@ table.t { width: 100%; border-collapse: collapse; font-size: .88rem; }
         return '<div class="msg bot" data-i="' + i + '"><div class="body">' + md(m.content) + '</div>' + (m.tools && m.tools.length ? '<div class="tools-used">Checked: ' + esc(m.tools.join(', ')) + '</div>' : '') + '<div class="row" style="gap:4px;margin-top:6px"><button class="btn sm ghost" data-copy="' + i + '">' + icon('copy') + 'Copy</button>' + (caps.tts ? '<button class="btn sm ghost" data-speak="' + i + '">' + icon('speaker') + 'Listen</button>' : '') + '</div></div>';
       }
       function drawChat() {
-        chat.innerHTML = history.length ? history.map(bubble).join('') : '<div class="card empty" style="margin-top:8px">' + icon('ask') + '<div><h3>Namaste' + (p ? ', ' + esc(p.name.split(' ')[0]) : '') + '</h3><p>Pick a suggestion below or ask your own question.</p></div></div>';
+        chat.innerHTML = history.length ? history.map(bubble).join('') : '<div class="card empty" style="margin-top:8px">' + icon('ask') + '<div><h3>Namaste' + (meP ? ', ' + esc(meP.name.split(' ')[0]) : '') + '</h3><p>Pick a suggestion below or ask your own question.</p></div></div>';
         $('#sugg', el).hidden = history.length > 0;
       }
       drawChat();
@@ -4299,6 +4305,7 @@ table.t { width: 100%; border-collapse: collapse; font-size: .88rem; }
         if (ctxOn.today) parts.push(todayText());
         if (ctxOn.vastu && vastuProj()) parts.push('VASTU PLAN:\n' + D.vastuView.summaryText(vastuProj()));
         if (!pr) parts.push('No person is saved yet; if the question needs a chart, ask for birth date, time and place.');
+        parts.push('The app user (me) is ' + (app.me() ? app.me().name : 'not set') + '; the chart being viewed is ' + (pr ? pr.name : 'none') + '.');
         parts.push('Saved people: ' + (app.profiles().map((x) => x.name + (x.relation ? ' (' + x.relation + ')' : '')).join(', ') || 'none') + '. Today is ' + A.todayStr(app.tz()) + '.');
         return 'DATA (computed by the app):\n' + parts.join('\n\n');
       }
@@ -4438,11 +4445,19 @@ table.t { width: 100%; border-collapse: collapse; font-size: .88rem; }
     return { diff, overdue: !r.done && diff < 0, soon: !r.done && diff >= 0 && diff <= 7 };
   }
 
+  function setMe() {
+    const ps = app.profiles();
+    if (!ps.length) return app.editProfile(null, (saved) => S.saveSettings({ me: saved.id }));
+    const sh = sheet('<h2>Which one is you?</h2><p class="small muted" style="margin:-8px 0 12px">Home greets you and daily guidance uses your chart. Other kundlis stay saved for viewing.</p><div class="stack-sm">' + ps.map((x) => '<button class="who" data-me="' + x.id + '"><span class="avatar">' + esc(initials(x.name)) + '</span><span class="grow"><b>' + esc(x.name) + '</b><br><span class="tiny muted">' + esc(x.relation || '') + '</span></span></button>').join('') + '</div><div class="sheet-actions"><button class="btn" data-close>Cancel</button><button class="btn primary" data-newme>' + icon('plus') + 'I’m not listed: add me</button></div>');
+    sh.el.addEventListener('click', (e) => { const b = e.target.closest('[data-me]'); if (b) { S.saveSettings({ me: b.dataset.me }); sh.close(); toast('Your profile is set'); } if (e.target.closest('[data-newme]')) { sh.close(); app.editProfile(null, (saved) => S.saveSettings({ me: saved.id })); } });
+  }
+  app.setMe = setMe;
+
   /* ---------- Home ---------- */
   app.views.home = {
     render(el) {
       const draw = () => {
-        const p = app.activeProfile(), pl = app.place(), pc = A.panchang(A.todayStr(pl.tz), pl);
+        const p = app.me(), pl = app.place(), pc = A.panchang(A.todayStr(pl.tz), pl);
         const rem = S.state.reminders || [], over = rem.filter((r) => dueInfo(r).overdue).length, soon = rem.filter((r) => dueInfo(r).soon).length;
         const bdays = app.profiles().map((x) => ({ p: x, b: nextBirthday(x) })).filter((x) => x.b.days <= 30).sort((a, b) => a.b.days - b.b.days);
         const hr = new Date().getHours(), greet = hr < 12 ? 'Good morning' : hr < 17 ? 'Good afternoon' : 'Good evening';
@@ -4455,14 +4470,14 @@ table.t { width: 100%; border-collapse: collapse; font-size: .88rem; }
           ['remedies', 'Remedies', 'Rudraksha, gems & mantras', 'lamp', 'mint'], ['calendar', 'Muhurat calendar', 'Good days for big moments', 'calendar', 'mint'],
           ['calc', 'Calculators', 'Aayadi, degrees, land units', 'numbers', 'sky'], ['compass', 'Compass', '16 zones & entrances', 'compass', 'rose'],
         ];
-        el.innerHTML = '<div class="home-hero"><div><div class="kicker">' + greet + '</div><h1>' + (p ? 'Namaste, ' + esc(p.name.split(' ')[0]) : 'Namaste') + '</h1><p class="lede">' + esc(pc.vara.name) + ' · ' + esc(pc.month) + ' ' + esc(pc.tithi.name) + ' · ' + esc(pc.nakshatra.name) + ' nakshatra' + (pc.periods ? ' · Rahu Kaal ' + app.time(pc.periods.rahu.start) + '–' + app.time(pc.periods.rahu.end) : '') + '</p></div></div>' +
+        el.innerHTML = '<div class="home-hero"><div><div class="kicker">' + greet + '</div><h1>' + (p ? 'Namaste, ' + esc(p.name.split(' ')[0]) : 'Namaste') + '</h1>' + (p ? '' : '<p class="small" style="margin:6px 0"><button class="btn sm" data-h="me">' + icon('people') + 'Set my profile</button> <span class="muted">so Anubhuti knows who you are</span></p>') + '<p class="lede">' + esc(pc.vara.name) + ' · ' + esc(pc.month) + ' ' + esc(pc.tithi.name) + ' · ' + esc(pc.nakshatra.name) + ' nakshatra' + (pc.periods ? ' · Rahu Kaal ' + app.time(pc.periods.rahu.start) + '–' + app.time(pc.periods.rahu.end) : '') + '</p></div></div>' +
           '<div class="home-grid"><div class="tiles">' + T.map(([r, t, sub, ic, tone, big]) => '<a class="tile tone-' + tone + (big ? ' big' : '') + '" href="#' + r.split(':')[0] + '" data-r2="' + r + '"><span class="tile-ic">' + icon(ic) + '</span><span class="tile-t">' + t + '</span><span class="tile-s">' + sub + '</span>' + (big ? '<span class="tile-cta">Open Vastu editor ' + icon('right') + '</span>' : '<span class="tile-go">' + icon('right') + '</span>') + '</a>').join('') + '</div>' +
           '<div class="stack"><div class="card side-card"><div class="row-between"><h3>' + icon('people') + ' Clients</h3><a class="small" href="#clients">Open</a></div><div class="grid g2" style="gap:8px;margin:10px 0"><div class="mini-stat bad"><span>Overdue</span><b>' + over + '</b></div><div class="mini-stat good"><span>Next 7 days</span><b>' + soon + '</b></div></div>' +
           (S.state.clients.length ? '<p class="small muted">' + S.state.clients.length + ' client' + (S.state.clients.length > 1 ? 's' : '') + ' saved.</p>' : '<p class="small muted">No clients yet. Add your first client to get started.</p>') + '<div class="row" style="gap:6px"><button class="btn sm" data-h="client">' + icon('plus') + 'Add client</button><button class="btn sm" data-h="reminder">' + icon('calendar') + 'Add reminder</button></div></div>' +
           '<a class="card ask-card" href="#ask"><span class="tiny" style="letter-spacing:.12em;opacity:.8">AI SPIRITUAL GUIDE</span><h2>Ask Anubhuti</h2><p class="small">Vastu · Astrology · Numerology · Tarot, answered from your own charts and plans.</p><span class="btn sm" style="align-self:flex-start;background:#fff;color:var(--indigo);border:0">' + icon('ask') + 'Open chat</span></a>' +
           '<div class="card side-card"><h3>' + icon('star') + ' Upcoming birthdays</h3>' + (bdays.length ? bdays.map((x) => '<div class="row-between small" style="padding:6px 0;border-bottom:1px dashed var(--line)"><span><b>' + esc(x.p.name) + '</b> turns ' + x.b.age + '</span><span class="chip ' + (x.b.days <= 3 ? 'great' : 'accent') + '">' + relWord(x.b.days) + '</span></div>').join('') : '<p class="small muted">No birthdays in the next 30 days.</p>') + '</div></div></div>';
         el.querySelectorAll('[data-r2="vastu:blank"]').forEach((a) => a.addEventListener('click', () => lsSet('vastuBlank', true)));
-        el.querySelectorAll('[data-h]').forEach((b) => b.addEventListener('click', () => (b.dataset.h === 'client' ? editClient() : editReminder())));
+        el.querySelectorAll('[data-h]').forEach((b) => b.addEventListener('click', () => (b.dataset.h === 'me' ? setMe() : b.dataset.h === 'client' ? editClient() : editReminder())));
       };
       draw(); this.onData = draw;
     },
@@ -4600,10 +4615,10 @@ table.t { width: 100%; border-collapse: collapse; font-size: .88rem; }
           (ps.length ? (up.filter((x) => x.b.days <= 60).length ? '<div class="bday-strip">' + up.filter((x) => x.b.days <= 60).map((x) => '<div class="bday"><span class="avatar">' + esc(initials(x.p.name)) + '</span><div><b>' + esc(x.p.name.split(' ')[0]) + '</b><div class="tiny muted">turns ' + x.b.age + ' ' + relWord(x.b.days) + '</div></div></div>').join('') + '</div>' : '') +
             '<div class="people">' + ps.map((p) => {
               const ch = app.chart(p), n = N.dobNumbers(p.dob), b = nextBirthday(p);
-              return '<div class="card person' + (cur && cur.id === p.id ? ' active' : '') + '"><span class="avatar" style="width:46px;height:46px;font-size:1.05rem">' + esc(initials(p.name)) + '</span><div class="grow stack-sm"><div class="row-between"><b>' + esc(p.name) + '</b>' + (cur && cur.id === p.id ? '<span class="chip accent">Active</span>' : '') + '</div><div class="small muted">' + esc(p.relation || '') + (p.relation ? ' · ' : '') + esc(app.fmtDob(p)) + '</div>' +
+              return '<div class="card person' + (cur && cur.id === p.id ? ' active' : '') + '"><span class="avatar" style="width:46px;height:46px;font-size:1.05rem">' + esc(initials(p.name)) + '</span><div class="grow stack-sm"><div class="row-between"><b>' + esc(p.name) + '</b><span class="row" style="gap:4px">' + (app.me() && app.me().id === p.id ? '<span class="chip great">You</span>' : '') + (cur && cur.id === p.id ? '<span class="chip accent">Viewing</span>' : '') + '</span></div><div class="small muted">' + esc(p.relation || '') + (p.relation ? ' · ' : '') + esc(app.fmtDob(p)) + '</div>' +
                 '<div class="row small" style="gap:6px"><span class="chip">Lagna ' + D.SIGNS[ch.lagna].sa + '</span><span class="chip">Moon ' + D.SIGNS[ch.moonSign].sa + '</span><span class="chip">' + D.NAKSHATRAS[ch.moonNak].name + '</span><span class="chip">Mulank ' + n.mulank + '</span></div>' +
                 '<div class="small">🎂 Birthday ' + relWord(b.days) + ' (turns ' + b.age + ')</div>' + (p.rituals ? '<div class="small callout" style="padding:6px 10px"><b>Rituals:</b> ' + esc(p.rituals) + '</div>' : '') +
-                '<div class="row" style="gap:6px;margin-top:4px"><button class="btn sm" data-use="' + p.id + '" data-go="kundli">' + icon('kundli') + 'Kundli</button><button class="btn sm" data-use="' + p.id + '" data-go="varsha">' + icon('calendar') + 'Varshphal ' + new Date().getFullYear() + '</button><button class="btn sm ghost" data-use="' + p.id + '">Make active</button><button class="btn sm ghost" data-edit="' + p.id + '">' + icon('edit') + 'Edit</button></div></div></div>';
+                '<div class="row" style="gap:6px;margin-top:4px"><button class="btn sm" data-use="' + p.id + '" data-go="kundli">' + icon('kundli') + 'Kundli</button><button class="btn sm" data-use="' + p.id + '" data-go="varsha">' + icon('calendar') + 'Varshphal ' + new Date().getFullYear() + '</button><button class="btn sm ghost" data-use="' + p.id + '">View</button>' + (app.me() && app.me().id === p.id ? '' : '<button class="btn sm ghost" data-setme="' + p.id + '">' + icon('check') + 'Set as my profile</button>') + '<button class="btn sm ghost" data-edit="' + p.id + '">' + icon('edit') + 'Edit</button></div></div></div>';
             }).join('') + '</div>'
             : '<div class="card empty dashed">' + icon('people') + '<div><p>No family members yet. Tap <b>Add member</b> to save a kundli.</p></div></div>');
       };
@@ -4611,8 +4626,9 @@ table.t { width: 100%; border-collapse: collapse; font-size: .88rem; }
       el.addEventListener('click', (e) => {
         if (e.target.closest('[data-new]')) app.editProfile();
         const u = e.target.closest('[data-use]');
-        if (u) { S.saveSettings({ activeProfile: u.dataset.use }); const g = u.dataset.go; if (g === 'kundli') { lsSet('ktab', 'overview'); app.go('kundli'); } else if (g === 'varsha') { lsSet('ktab', 'varsha'); lsSet('kyear', new Date().getFullYear()); app.go('kundli'); } else toast('Active profile changed'); }
+        if (u) { S.saveSettings({ activeProfile: u.dataset.use }); const g = u.dataset.go; if (g === 'kundli') { lsSet('ktab', 'overview'); app.go('kundli'); } else if (g === 'varsha') { lsSet('ktab', 'varsha'); lsSet('kyear', new Date().getFullYear()); app.go('kundli'); } else toast('Now viewing ' + ((app.activeProfile() || {}).name || '')); }
         const ed = e.target.closest('[data-edit]'); if (ed) app.editProfile(app.profiles().find((p) => p.id === ed.dataset.edit));
+        const sm = e.target.closest('[data-setme]'); if (sm) { S.saveSettings({ me: sm.dataset.setme }); toast('Your profile is set'); }
       });
       this.onData = draw;
     },
